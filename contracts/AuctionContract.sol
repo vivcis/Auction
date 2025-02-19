@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.26;
+pragma solidity ^0.8.28;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -61,11 +61,17 @@ contract ReverseDutchAuctionSwap {
         return initialPrice - reduction;
     }
 
+    function calculateTotalCost(uint256 amountTokens) public view returns (uint256) {
+        uint256 currentPrice = getCurrentPrice();
+        return (currentPrice * amountTokens) / 1e18;
+    }
+
     function buy(uint256 amountTokens) external {
         require(saleActive, "Auction not active");
         require(amountTokens > 0 && amountTokens <= tokensForSale, "Invalid token amount");
+
         uint256 currentPrice = getCurrentPrice();
-        uint256 totalCost = currentPrice * amountTokens;
+        uint256 totalCost = (currentPrice * amountTokens) / 1e18;
         paymentToken.safeTransferFrom(msg.sender, seller, totalCost);
         tokenForSale.safeTransfer(msg.sender, amountTokens);
         tokensForSale -= amountTokens;

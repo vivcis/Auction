@@ -1,8 +1,8 @@
 import { ethers, network } from "hardhat";
 
 async function main() {
-  const auctionAddress = "0x267fB71b280FB34B278CedE84180a9A9037C941b"; 
-  const [, buyer] = await ethers.getSigners();
+  const auctionAddress = "0x267fB71b280FB34B278CedE84180a9A9037C941b";
+  const [deployer, buyer] = await ethers.getSigners();
   const AuctionFactory = await ethers.getContractFactory("ReverseDutchAuctionSwap");
   const auction = AuctionFactory.attach(auctionAddress) as any;
 
@@ -18,40 +18,54 @@ async function main() {
   const ERC20Mock = await ethers.getContractFactory("ERC20Mock");
   const paymentToken = ERC20Mock.attach(paymentTokenAddress) as any;
 
-  const buyerApprovalTx = await paymentToken.connect(buyer).approve(
-    auctionAddress,
-    ethers.parseUnits("1000", 18)
-  );
+  let buyerBalance = await paymentToken.balanceOf(buyer.address);
+  console.log("Buyer payment token balance:", buyerBalance.toString());
+  if (buyerBalance === 0n) {
+    const transferTx = await paymentToken.transfer(buyer.address, ethers.parseUnits("1000", 18));
+    await transferTx.wait();
+    buyerBalance = await paymentToken.balanceOf(buyer.address);
+    console.log("Buyer funded. New balance:", buyerBalance.toString());
+  }
+
+  const approvalAmount = ethers.parseUnits("10000", 18);
+  const buyerApprovalTx = await paymentToken.connect(buyer).approve(auctionAddress, approvalAmount);
   await buyerApprovalTx.wait();
   console.log("Buyer approved auction contract.");
 
-  const amountToBuy = ethers.parseUnits("100", 18);
+  const amountToBuy = ethers.parseUnits("0.1", 18);
+  try {
+    const totalCost = await auction.calculateTotalCost(amountToBuy);
+    console.log("Computed total cost for 0.1 token:", totalCost.toString());
+  } catch (error) {
+    console.error("calculateTotalCost call failed:", error);
+  }
+
   try {
     const tx0 = await auction.connect(buyer).buy(amountToBuy);
     await tx0.wait();
-    console.log("Buyer purchased 100 tokens at t=0");
+    console.log("Buyer purchased 0.1 token at t=0");
   } catch (error) {
     console.error("Purchase at t=0 failed:", error);
   }
 
-  await increaseTime(900); // Increase time by 15 minutes
+  await increaseTime(900);
   currentPrice = await auction.getCurrentPrice();
   console.log("Current price at t=900s:", currentPrice.toString());
   try {
     const tx900 = await auction.connect(buyer).buy(amountToBuy);
     await tx900.wait();
-    console.log("Buyer purchased 100 tokens at t=900s");
+    console.log("Buyer purchased 0.1 token at t=900s");
   } catch (error) {
     console.error("Purchase at t=900s failed:", error);
   }
 
-  await increaseTime(1800); // Increase time by an additional 30 minutes (total t=2700s)
+  await increaseTime(1800);
   currentPrice = await auction.getCurrentPrice();
   console.log("Current price at t=2700s:", currentPrice.toString());
   try {
     const tx2700 = await auction.connect(buyer).buy(amountToBuy);
     await tx2700.wait();
-    console.log("Buyer purchased 100 tokens at t=2700s");
+    console.log("Buyer purchased 0.1 token at t=2700s");
   } catch (error) {
     console.error("Purchase at t=2700s failed:", error);
   }
